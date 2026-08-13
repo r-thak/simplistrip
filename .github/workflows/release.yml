@@ -1,7 +1,8 @@
 name: Release
 
-# Push a tag like "v1.5" (matching the manifest.json version) to build the
-# extension and publish it as a GitHub release with the .zip attached.
+# Push a tag like "v1.5.1" (matching the manifest.json version) to build the
+# extension, sign it with Mozilla (AMO), and publish both as a GitHub
+# release.
 on:
   push:
     tags:
@@ -28,22 +29,39 @@ jobs:
       - name: Lint extension
         run: npx web-ext lint --source-dir .
 
-      - name: Build extension
+      # Chrome doesn't require signing to side-load (unpack the zip and
+      # "Load unpacked" in developer mode), so ship the plain build for it.
+      - name: Build Chrome package
         run: npx web-ext build --source-dir . --artifacts-dir web-ext-artifacts --ignore-files package.json package-lock.json
+      - name: Name Chrome package
+        run: mv web-ext-artifacts/*.zip "web-ext-artifacts/simplistrip-chrome-${{ github.ref_name }}.zip"
 
-      # The manifest is plain Manifest V3 with no Firefox-only APIs, so the
-      # same package works unmodified in both browsers. Ship it under both
-      # names so it's easy to find in the release regardless of which
-      # browser you're installing it for.
-      - name: Name packages per browser
-        run: |
-          cd web-ext-artifacts
-          src=$(ls ./*.zip)
-          cp "$src" "simplistrip-firefox-${{ github.ref_name }}.zip"
-          cp "$src" "simplistrip-chrome-${{ github.ref_name }}.zip"
-          rm "$src"
+      # Firefox requires an add-on to be signed by Mozilla to install
+      # without disabling signature enforcement, so submit the build to AMO
+      # and let it hand back a signed .xpi. This uploads as a new version of
+      # the *existing* AMO listing (matched by the manifest's gecko id), not
+      # a new listing, so it won't hit "duplicate add-on ID" like a manual
+      # web UI submission can.
+      #
+      # This add-on is listed publicly on AMO, so the new version also goes
+      # through Mozilla's review queue. web-ext waits up to 15 minutes
+      # (its default) for that to clear before downloading the signed .xpi.
+      # If review takes longer, this step times out but the version is
+      # still submitted and under review on AMO - re-run this job once
+      # it's approved to publish the release with the signed .xpi attached.
+      - name: Sign Firefox package with AMO
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: npx web-ext sign --source-dir . --artifacts-dir web-ext-artifacts --channel listed --ignore-files package.json package-lock.json
+      - name: Name Firefox package
+        run: mv web-ext-artifacts/*.xpi "web-ext-artifacts/simplistrip-firefox-${{ github.ref_name }}.xpi"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" web-ext-artifacts/*.zip --title "${{ github.ref_name }}" --generate-notes
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            web-ext-artifacts/simplistrip-chrome-${{ github.ref_name }}.zip \
+            web-ext-artifacts/simplistrip-firefox-${{ github.ref_name }}.xpi \
+            --title "${{ github.ref_name }}" --generate-notes
