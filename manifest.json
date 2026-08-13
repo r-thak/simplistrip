@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "SimpliStrip",
   "version": "1.5",
   "description": "Strips Simplify tracking parameters from the URL bar after page load",
@@ -13,7 +13,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "simplistrip@rthak",
-      "strict_min_version": "58.0"
+      "strict_min_version": "109.0"
     }
   }
 }

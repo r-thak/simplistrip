@@ -31,6 +31,18 @@ jobs:
       - name: Build extension
         run: npx web-ext build --source-dir . --artifacts-dir web-ext-artifacts --ignore-files package.json package-lock.json
 
+      # The manifest is plain Manifest V3 with no Firefox-only APIs, so the
+      # same package works unmodified in both browsers. Ship it under both
+      # names so it's easy to find in the release regardless of which
+      # browser you're installing it for.
+      - name: Name packages per browser
+        run: |
+          cd web-ext-artifacts
+          src=$(ls ./*.zip)
+          cp "$src" "simplistrip-firefox-${{ github.ref_name }}.zip"
+          cp "$src" "simplistrip-chrome-${{ github.ref_name }}.zip"
+          rm "$src"
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
