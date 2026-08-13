@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "SimpliStrip",
+  "version": "1.5",
+  "description": "Strips Simplify tracking parameters from the URL bar after page load",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "simplistrip@rthak",
+      "strict_min_version": "58.0"
+    }
+  }
+}
