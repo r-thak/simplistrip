@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SimpliStrip",
-  "version": "1.5.1",
-  "description": "Strips Simplify tracking parameters from the URL bar after page load",
+  "version": "1.6.0",
+  "description": "Strips Simplify and other tracking parameters from the URL bar after page load",
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

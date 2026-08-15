@@ -1,10 +1,18 @@
 (function () {
-  // On destination pages: strip Simplify params from the URL bar without reloading.
+  // Known trackers: each maps a utm_source value to the extra params to strip
+  // alongside it.
+  const TRACKERS = {
+    Simplify: ["ref"],
+    zero2sudo: ["utm_medium"],
+  };
+
+  // On destination pages: strip tracking params from the URL bar without reloading.
   try {
     const u = new URL(location.href);
-    if (u.searchParams.get("utm_source") === "Simplify") {
+    const source = u.searchParams.get("utm_source");
+    if (Object.prototype.hasOwnProperty.call(TRACKERS, source)) {
       u.searchParams.delete("utm_source");
-      u.searchParams.delete("ref");
+      TRACKERS[source].forEach((param) => u.searchParams.delete(param));
       history.replaceState(null, document.title, u.toString());
     }
   } catch (_) {}
