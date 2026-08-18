@@ -47,13 +47,39 @@ jobs:
       # through Mozilla's review queue. web-ext waits up to 15 minutes
       # (its default) for that to clear before downloading the signed .xpi.
       # If review takes longer, this step times out but the version is
-      # still submitted and under review on AMO - re-run this job once
-      # it's approved to publish the release with the signed .xpi attached.
+      # still submitted and under review on AMO.
+      #
+      # web-ext always tries to *submit a new* version, so simply re-running
+      # this job after a timeout hits a 409 "Version already exists" instead
+      # of picking up the submission that's already in review. If that
+      # happens, fall back to fetching the signed file straight from AMO's
+      # public versions API - this only succeeds once that version has
+      # actually cleared review, so a version still pending correctly fails
+      # this step again (re-run once more after it's approved).
       - name: Sign Firefox package with AMO
         env:
           WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
           WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
-        run: npx web-ext sign --source-dir . --artifacts-dir web-ext-artifacts --channel listed --ignore-files package.json package-lock.json
+        run: |
+          if npx web-ext sign --source-dir . --artifacts-dir web-ext-artifacts --channel listed --ignore-files package.json package-lock.json; then
+            exit 0
+          fi
+
+          echo "::warning::web-ext sign failed; checking whether this version was already submitted and has since been approved on AMO"
+
+          GECKO_ID=$(node -p "require('./manifest.json').browser_specific_settings.gecko.id")
+          VERSION=$(node -p "require('./manifest.json').version")
+
+          FILE_URL=$(curl -sf "https://addons.mozilla.org/api/v5/addons/addon/${GECKO_ID}/versions/" \
+            | jq -r --arg v "$VERSION" '.results[] | select(.version == $v and .file.status == "public") | .file.url // empty')
+
+          if [ -z "$FILE_URL" ]; then
+            echo "::error::No public signed file found for version ${VERSION} on AMO. It's likely still in review - re-run this job once it's approved."
+            exit 1
+          fi
+
+          echo "Found an already-approved signed file for ${VERSION} on AMO, downloading it instead of resubmitting"
+          curl -sfL -o "web-ext-artifacts/simplistrip-${VERSION}.xpi" "$FILE_URL"
       - name: Name Firefox package
         run: mv web-ext-artifacts/*.xpi "web-ext-artifacts/simplistrip-firefox-${{ github.ref_name }}.xpi"
 
